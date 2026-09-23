@@ -5,19 +5,20 @@ ROUTES_FILE = "data/raw/gtfs/routes.txt"
 TRIPS_FILE = "data/raw/gtfs/trips.txt"
 STOP_TIMES_FILE = "data/raw/gtfs/stop_times.txt"
 
-def load_stops():
-    stops ={}
 
-    with open(STOPS_FILE,newline = "" , encoding = "utf-8") as file:
+def load_stops():
+    stops = {}
+
+    with open(STOPS_FILE, newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
 
         for row in reader:
             stop_id = int(row["stop_id"])
 
             stops[stop_id] = {
-                "name" : row["stop_name"],
-                "lat" : float(row["stop_lat"]),
-                "lon" : float(row["stop_lon"])
+                "name": row["stop_name"],
+                "lat": float(row["stop_lat"]),
+                "lon": float(row["stop_lon"])
             }
 
     return stops
@@ -26,15 +27,15 @@ def load_stops():
 def load_routes():
     routes = {}
 
-    with open(ROUTES_FILE,newline ="", encoding = "utf-8") as file:
+    with open(ROUTES_FILE, newline="", encoding="utf-8") as file:
         reader = csv.DictReader(file)
 
         for row in reader:
             route_id = int(row["route_id"])
 
             routes[route_id] = {
-                "short_name" : row["route_short_name"],
-                "long_name" : row["route_long_name"]
+                "short_name": row["route_short_name"],
+                "long_name": row["route_long_name"]
             }
 
     return routes
@@ -75,7 +76,7 @@ def load_stop_times():
                 "departure": row["departure_time"],
             })
 
-    return stop_times    
+    return stop_times
 
 
 def time_to_seconds(time_string):
@@ -90,17 +91,39 @@ if __name__ == "__main__":
     trips = load_trips()
     stop_times = load_stop_times()
 
-    for i in range(len(stop_times[0]) - 1):
-        current = stop_times[0][i]
-        next_stop = stop_times[0][i + 1]
+    graph = {}
 
-        current_station = stops[current["stop_id"]]["name"]
-        next_station = stops[next_stop["stop_id"]]["name"]
+    for trip_id, trip_stops in stop_times.items():
 
-        departure = time_to_seconds(current["departure"])
-        arrival = time_to_seconds(next_stop["arrival"])
+        for i in range(len(trip_stops) - 1):
+            current = trip_stops[i]
+            next_stop = trip_stops[i + 1]
 
-        travel_time = arrival - departure
+            current_id = current["stop_id"]
+            next_id = next_stop["stop_id"]
 
-        print(current_station, "->", next_station, travel_time, "sec")
+            departure = time_to_seconds(current["departure"])
+            arrival = time_to_seconds(next_stop["arrival"])
 
+            travel_time = arrival - departure
+
+            if current_id not in graph:
+                graph[current_id] = {}
+
+            if next_id not in graph[current_id]:
+                graph[current_id][next_id] = []
+
+            graph[current_id][next_id].append(travel_time)
+
+    for current_id in graph:
+        for next_id in graph[current_id]:
+            times = graph[current_id][next_id]
+
+            average_time = sum(times) / len(times)
+
+            graph[current_id][next_id] = round(average_time)
+
+    print("Graph nodes:", len(graph))
+    print("Connections from Rithala:", graph[21])
+
+    
