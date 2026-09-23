@@ -77,17 +77,30 @@ def load_stop_times():
 
     return stop_times    
 
+
+def time_to_seconds(time_string):
+    hours, minutes, seconds = map(int, time_string.split(":"))
+
+    return hours * 3600 + minutes * 60 + seconds
+
+
 if __name__ == "__main__":
     stops = load_stops()
     routes = load_routes()
     trips = load_trips()
     stop_times = load_stop_times()
 
-    trip = trips[0]
-    route = routes[trip["route_id"]]
+    for i in range(len(stop_times[0]) - 1):
+        current = stop_times[0][i]
+        next_stop = stop_times[0][i + 1]
 
-    print("Trip:", 0)
-    print("Route:", route["short_name"])
-    print("Service:", route["long_name"])
+        current_station = stops[current["stop_id"]]["name"]
+        next_station = stops[next_stop["stop_id"]]["name"]
 
-    print(stop_times[0])
+        departure = time_to_seconds(current["departure"])
+        arrival = time_to_seconds(next_stop["arrival"])
+
+        travel_time = arrival - departure
+
+        print(current_station, "->", next_station, travel_time, "sec")
+
