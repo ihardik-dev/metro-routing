@@ -123,7 +123,46 @@ if __name__ == "__main__":
 
             graph[current_id][next_id] = round(average_time)
 
-    print("Graph nodes:", len(graph))
-    print("Connections from Rithala:", graph[21])
 
-    
+    distances = {}
+    previous = {}
+
+    for stop_id in graph:
+        distances[stop_id] = float("inf")
+        previous[stop_id] = None
+
+    distances[21] = 0
+
+    unvisited = set(graph.keys())
+
+    while unvisited:
+
+        current = min(
+            unvisited,
+            key=lambda station: distances[station]
+        )
+
+        unvisited.remove(current)
+
+        for neighbor, travel_time in graph[current].items():
+
+            new_distance = distances[current] + travel_time
+
+            if new_distance < distances[neighbor]:
+                distances[neighbor] = new_distance
+                previous[neighbor] = current
+
+
+    target = 1
+    path = []
+
+    current = target
+
+    while current is not None:
+        path.append(current)
+        current = previous[current]
+
+    path.reverse()
+
+    print("Path:", path)
+    print("Travel time:", distances[target], "seconds")
