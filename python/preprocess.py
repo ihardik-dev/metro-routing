@@ -1,4 +1,5 @@
 import csv
+import argparse
 from transfers import add_transfers
 
 STOPS_FILE = "data/raw/gtfs/stops.txt"
@@ -142,7 +143,6 @@ def build_graph(stop_times, trips, routes):
 
 
 def find_route(graph, source, target):
-
     distances = {}
     previous = {}
 
@@ -151,11 +151,9 @@ def find_route(graph, source, target):
         distances[station] = {}
 
     distances[source]["START"] = 0
-
     unvisited = [(source, "START")]
 
     while unvisited:
-
         current_station, current_line = min(
             unvisited,
             key=lambda state: distances[state[0]][state[1]]
@@ -169,22 +167,19 @@ def find_route(graph, source, target):
             break
 
         for neighbor, route_data in graph[current_station].items():
-
             for edge_line, travel_time in route_data.items():
 
                 new_distance = current_distance + travel_time
 
                 # Manual transfer
                 if edge_line.startswith("TRANSFER:"):
-
-                    # Extract destination line
                     new_line = edge_line.split(":")[1]
 
+                # Normal metro edge
                 else:
-
                     new_line = edge_line
 
-                    # Normal metro line change
+                    # Line change penalty
                     if (
                         current_line != "START"
                         and new_line != current_line
@@ -206,7 +201,6 @@ def find_route(graph, source, target):
                     if (neighbor, new_line) not in unvisited:
                         unvisited.append((neighbor, new_line))
 
-    # No route
     if not distances[target]:
         return None
 
@@ -219,11 +213,9 @@ def find_route(graph, source, target):
 
     # Reconstruct route
     path = []
-
     current_state = (target, target_line)
 
     while current_state[0] != source:
-
         station, line = current_state
 
         previous_station, previous_line, edge_line = previous[current_state]
@@ -244,16 +236,27 @@ def find_route(graph, source, target):
 
     path.reverse()
 
-    # Count actual manual transfers
+    # Count both manual transfers and line changes
     transfers = 0
+    previous_line = "START"
 
     for step in path:
+        if step["edge"] == "START":
+            previous_line = step["line"]
+            continue
 
         if step["edge"].startswith("TRANSFER:"):
             transfers += 1
 
-    return path, travel_time, transfers
+        elif (
+            previous_line != "START"
+            and step["line"] != previous_line
+        ):
+            transfers += 1
 
+        previous_line = step["line"]
+
+    return path, travel_time, transfers
 
 def find_route_fewest_stations(graph, source, target):
     distances = {}
@@ -271,6 +274,7 @@ def find_route_fewest_stations(graph, source, target):
             unvisited,
             key=lambda state: distances[state[0]][state[1]]
         )
+
         unvisited.remove((current_station, current_line))
 
         current_distance = distances[current_station][current_line]
@@ -281,20 +285,23 @@ def find_route_fewest_stations(graph, source, target):
         for neighbor, route_data in graph[current_station].items():
             for edge_line in route_data:
 
+                # Manual transfer
                 if edge_line.startswith("TRANSFER:"):
                     new_line = edge_line.split(":")[1]
-                    station_cost = 1
+
+                # Normal metro edge
                 else:
                     new_line = edge_line
-                    station_cost = 1
 
-                new_distance = current_distance + station_cost
+                # Every edge moves to another station
+                new_distance = current_distance + 1
 
                 if (
                     new_line not in distances[neighbor]
                     or new_distance < distances[neighbor][new_line]
                 ):
                     distances[neighbor][new_line] = new_distance
+
                     previous[(neighbor, new_line)] = (
                         current_station,
                         current_line,
@@ -339,13 +346,26 @@ def find_route_fewest_stations(graph, source, target):
 
     path.reverse()
 
-    transfers = sum(
-        1 for step in path
-        if step["edge"].startswith("TRANSFER:")
-    )
+    # Count both manual transfers AND line changes
+    transfers = 0
+    previous_line = "START"
+
+    for step in path:
+        if step["edge"] == "START":
+            previous_line = step["line"]
+            continue
+
+        if step["edge"].startswith("TRANSFER:"):
+            transfers += 1
+        elif (
+            previous_line != "START"
+            and step["line"] != previous_line
+        ):
+            transfers += 1
+
+        previous_line = step["line"]
 
     return path, station_count, transfers
-
 
 def find_route_fewest_transfers(graph, source, target):
     distances = {}
@@ -441,7 +461,6 @@ def find_route_fewest_transfers(graph, source, target):
 
     return path, transfer_count, transfer_count
 
-
 def print_route(result, mode):
     if result is None:
         print("No route found.")
@@ -457,32 +476,118 @@ def print_route(result, mode):
 
         if step["edge"] == "START":
             print(station_name)
+
         elif step["edge"].startswith("TRANSFER:"):
             print(f"{station_name} [TRANSFER]")
+
         else:
             print(f"{station_name} [{step['line']}]")
 
-    if mode == "Fastest":
-        print("Travel time:", cost, "seconds")
-    elif mode == "Fewest stations":
-        print("Stations:", cost)
+    # Calculate number of stations
+    stations = len(path) - 1
 
+    # Calculate travel time
+    if mode == "Fastest":
+        total_seconds = cost
+
+    else:
+        # For non-fastest modes, calculate the actual travel time
+        # using the fastest route for the same source and target.
+        source = path[0]["station"]
+        target = path[-1]["station"]
+
+        fastest_result = find_route(graph, source, target)
+
+        if fastest_result:
+            _, total_seconds, _ = fastest_result
+        else:
+            total_seconds = 0
+
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    if hours > 0:
+        time_text = f"{hours}h {minutes}m {seconds}s"
+    else:
+        time_text = f"{minutes}m {seconds}s"
+
+    print()
+    print("=" * 30)
+    print("Route summary")
+    print("=" * 30)
+    print("Stations:", stations)
     print("Transfers:", transfers)
+    print("Travel time:", time_text)
+    print("=" * 30)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--source",
+        required=True,
+        help="Starting station name"
+    )
+
+    parser.add_argument(
+        "--target",
+        required=True,
+        help="Destination station name"
+    )
+
+    parser.add_argument(
+        "--mode",
+        choices=["fastest", "stations", "transfers"],
+        required=True
+    )
+
+    args = parser.parse_args()
+
     stops = load_stops()
     stop_times = load_stop_times()
     trips = load_trips()
     routes = load_routes()
 
+    # Convert station names → station IDs
+    station_ids = {}
+
+    for stop_id, stop_data in stops.items():
+        station_ids[stop_data["name"].lower()] = stop_id
+
+    source_name = args.source.lower()
+    target_name = args.target.lower()
+
+    if source_name not in station_ids:
+        print(f"Station not found: {args.source}")
+        exit()
+
+    if target_name not in station_ids:
+        print(f"Station not found: {args.target}")
+        exit()
+
+    source = station_ids[source_name]
+    target = station_ids[target_name]
+
     graph = build_graph(stop_times, trips, routes)
     graph = add_transfers(graph)
 
-    source = 175
-    target = 30
+    if args.mode == "fastest":
+        result = find_route(graph, source, target)
+        print_route(result, "Fastest")
 
-    fastest = find_route(graph, source, target)
-    fewest_stations = find_route_fewest_stations(graph, source, target)
+    elif args.mode == "stations":
+        result = find_route_fewest_stations(
+            graph,
+            source,
+            target
+        )
+        print_route(result, "Fewest stations")
 
-    print_route(fastest, "Fastest")
-    print_route(fewest_stations, "Fewest stations")
+    elif args.mode == "transfers":
+        result = find_route_fewest_transfers(
+            graph,
+            source,
+            target
+        )
+        print_route(result, "Fewest transfers")
