@@ -36,7 +36,6 @@ def load_routes():
 
             short_name = row["route_short_name"]
 
-            # Extract metro line
             # Example:
             # G_KB   -> G
             # G_KB_R -> G
@@ -183,7 +182,7 @@ def find_route(graph, source, target):
 
                 new_distance = current_distance + travel_time
 
-                # Transfer between metro lines
+                # Changing metro line
                 if (
                     current_line != "START"
                     and line != "TRANSFER"
@@ -191,7 +190,7 @@ def find_route(graph, source, target):
                 ):
                     new_distance += 5 * 60
 
-                # Manual transfer
+                # Manual transfer edge
                 if line == "TRANSFER":
                     new_line = current_line
                 else:
@@ -205,16 +204,18 @@ def find_route(graph, source, target):
 
                     previous[(neighbor, new_line)] = (
                         current_station,
-                        current_line
+                        current_line,
+                        line
                     )
 
                     if (neighbor, new_line) not in unvisited:
                         unvisited.append((neighbor, new_line))
 
-    # Find cheapest state at target
+    # No route
     if not distances[target]:
         return None
 
+    # Find cheapest state at target
     target_line = min(
         distances[target],
         key=distances[target].get
@@ -222,20 +223,51 @@ def find_route(graph, source, target):
 
     travel_time = distances[target][target_line]
 
-    # Reconstruct path
+    # Reconstruct route
     path = []
     current_state = (target, target_line)
 
     while current_state[0] != source:
 
-        path.append(current_state[0])
+        station, line = current_state
 
-        current_state = previous[current_state]
+        previous_station, previous_line, edge_line = previous[current_state]
 
-    path.append(source)
+        path.append({
+            "station": station,
+            "line": edge_line
+        })
+
+        current_state = (previous_station, previous_line)
+
+    path.append({
+        "station": source,
+        "line": "START"
+    })
+
     path.reverse()
 
-    return path, travel_time
+    # Count transfers
+    transfers = 0
+    previous_line = None
+
+    for step in path:
+
+        line = step["line"]
+
+        if line == "TRANSFER":
+            transfers += 1
+            continue
+
+        if line == "START":
+            continue
+
+        if previous_line is not None and line != previous_line:
+            transfers += 1
+
+        previous_line = line
+
+    return path, travel_time, transfers
 
 
 if __name__ == "__main__":
@@ -257,11 +289,20 @@ if __name__ == "__main__":
         print("No route found.")
 
     else:
-        path, travel_time = result
+        path, travel_time, transfers = result
 
         print("Route:")
 
-        for stop_id in path:
-            print(stops[stop_id]["name"])
+        for step in path:
+
+            station_name = stops[step["station"]]["name"]
+            line = step["line"]
+
+            if line == "START":
+                print(station_name)
+
+            else:
+                print(f"{station_name} [{line}]")
 
         print("Travel time:", travel_time, "seconds")
+        print("Transfers:", transfers)
