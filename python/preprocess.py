@@ -347,8 +347,129 @@ def find_route_fewest_stations(graph, source, target):
     return path, station_count, transfers
 
 
-if __name__ == "__main__":
+def find_route_fewest_transfers(graph, source, target):
+    distances = {}
+    previous = {}
 
+    for station in graph:
+        distances[station] = {}
+
+    distances[source]["START"] = 0
+    unvisited = [(source, "START")]
+
+    while unvisited:
+        current_station, current_line = min(
+            unvisited,
+            key=lambda state: distances[state[0]][state[1]]
+        )
+
+        unvisited.remove((current_station, current_line))
+
+        current_distance = distances[current_station][current_line]
+
+        if current_station == target:
+            break
+
+        for neighbor, route_data in graph[current_station].items():
+            for edge_line, travel_time in route_data.items():
+
+                if edge_line.startswith("TRANSFER:"):
+                    new_line = edge_line.split(":")[1]
+                    transfer_cost = 1
+                else:
+                    new_line = edge_line
+
+                    if (
+                        current_line != "START"
+                        and new_line != current_line
+                    ):
+                        transfer_cost = 1
+                    else:
+                        transfer_cost = 0
+
+                new_distance = current_distance + transfer_cost
+
+                if (
+                    new_line not in distances[neighbor]
+                    or new_distance < distances[neighbor][new_line]
+                ):
+                    distances[neighbor][new_line] = new_distance
+
+                    previous[(neighbor, new_line)] = (
+                        current_station,
+                        current_line,
+                        edge_line
+                    )
+
+                    if (neighbor, new_line) not in unvisited:
+                        unvisited.append((neighbor, new_line))
+
+    if not distances[target]:
+        return None
+
+    target_line = min(
+        distances[target],
+        key=distances[target].get
+    )
+
+    transfer_count = distances[target][target_line]
+
+    # Reconstruct route
+    path = []
+    current_state = (target, target_line)
+
+    while current_state[0] != source:
+        station, line = current_state
+
+        previous_station, previous_line, edge_line = previous[current_state]
+
+        path.append({
+            "station": station,
+            "line": line,
+            "edge": edge_line
+        })
+
+        current_state = (previous_station, previous_line)
+
+    path.append({
+        "station": source,
+        "line": "START",
+        "edge": "START"
+    })
+
+    path.reverse()
+
+    return path, transfer_count, transfer_count
+
+
+def print_route(result, mode):
+    if result is None:
+        print("No route found.")
+        return
+
+    path, cost, transfers = result
+
+    print(f"\n{mode} route:")
+    print("-" * 30)
+
+    for step in path:
+        station_name = stops[step["station"]]["name"]
+
+        if step["edge"] == "START":
+            print(station_name)
+        elif step["edge"].startswith("TRANSFER:"):
+            print(f"{station_name} [TRANSFER]")
+        else:
+            print(f"{station_name} [{step['line']}]")
+
+    if mode == "Fastest":
+        print("Travel time:", cost, "seconds")
+    elif mode == "Fewest stations":
+        print("Stations:", cost)
+
+    print("Transfers:", transfers)
+
+if __name__ == "__main__":
     stops = load_stops()
     stop_times = load_stop_times()
     trips = load_trips()
@@ -360,27 +481,8 @@ if __name__ == "__main__":
     source = 175
     target = 30
 
-    result = find_route_fewest_stations(graph, source, target)
-    if result is None:
-        print("No route found.")
+    fastest = find_route(graph, source, target)
+    fewest_stations = find_route_fewest_stations(graph, source, target)
 
-    else:
-        path, travel_time, transfers = result
-
-        print("Route:")
-
-        for step in path:
-
-            station_name = stops[step["station"]]["name"]
-
-            if step["edge"] == "START":
-                print(station_name)
-
-            elif step["edge"].startswith("TRANSFER:"):
-                print(f"{station_name} [TRANSFER]")
-
-            else:
-                print(f"{station_name} [{step['line']}]")
-
-        print("Stations:", travel_time)
-        print("Transfers:", transfers)
+    print_route(fastest, "Fastest")
+    print_route(fewest_stations, "Fewest stations")
