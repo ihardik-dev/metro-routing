@@ -51,7 +51,7 @@ def load_trips():
             trip_id = int(row["trip_id"])
 
             trips[trip_id] = {
-                "route_id": int(row["route_id"]),
+                "route_id": int(row["route_id"])
             }
 
     return trips
@@ -73,7 +73,7 @@ def load_stop_times():
                 "stop_id": int(row["stop_id"]),
                 "sequence": int(row["stop_sequence"]),
                 "arrival": row["arrival_time"],
-                "departure": row["departure_time"],
+                "departure": row["departure_time"]
             })
 
     return stop_times
@@ -85,7 +85,7 @@ def time_to_seconds(time_string):
     return hours * 3600 + minutes * 60 + seconds
 
 
-def find_route(source, target):
+def find_route(graph, source, target):
 
     distances = {}
     previous = {}
@@ -107,7 +107,6 @@ def find_route(source, target):
 
         unvisited.remove(current)
 
-        # No more reachable stations
         if distances[current] == float("inf"):
             break
 
@@ -119,11 +118,9 @@ def find_route(source, target):
                 distances[neighbor] = new_distance
                 previous[neighbor] = current
 
-    # Destination unreachable
     if distances[target] == float("inf"):
         return None
 
-    # Reconstruct route
     path = []
 
     current = target
@@ -136,3 +133,65 @@ def find_route(source, target):
 
     return path, distances[target]
 
+
+if __name__ == "__main__":
+
+    stops = load_stops()
+    routes = load_routes()
+    trips = load_trips()
+    stop_times = load_stop_times()
+
+    graph = {}
+
+    # Build graph
+    for trip_id, trip_stops in stop_times.items():
+
+        for i in range(len(trip_stops) - 1):
+
+            current = trip_stops[i]
+            next_stop = trip_stops[i + 1]
+
+            current_id = current["stop_id"]
+            next_id = next_stop["stop_id"]
+
+            departure = time_to_seconds(current["departure"])
+            arrival = time_to_seconds(next_stop["arrival"])
+
+            travel_time = arrival - departure
+
+            if current_id not in graph:
+                graph[current_id] = {}
+
+            if next_id not in graph[current_id]:
+                graph[current_id][next_id] = []
+
+            graph[current_id][next_id].append(travel_time)
+
+    # Average travel times
+    for current_id in graph:
+        for next_id in graph[current_id]:
+
+            times = graph[current_id][next_id]
+
+            average_time = sum(times) / len(times)
+
+            graph[current_id][next_id] = round(average_time)
+
+    # Find route
+    source = 21
+    target = 1
+
+    result = find_route(graph, source, target)
+
+    if result is None:
+        print("No route found.")
+
+    else:
+        path, travel_time = result
+
+        print("Route:")
+
+        for stop_id in path:
+            print(stops[stop_id]["name"])
+
+        print("Travel time:", travel_time, "seconds")
