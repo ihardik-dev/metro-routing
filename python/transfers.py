@@ -1,7 +1,7 @@
-# Extra real-world transfer connections
-# not represented in the GTFS snapshot.
+TRANSFER_TIME = 5 * 60
 
-TRANSFER_TIME = 4 * 60  # 4 minutes
+TRANSFER_ROUTE = "TRANSFER"
+
 
 TRANSFERS = [
     # Punjabi Bagh West ↔ Punjabi Bagh
@@ -25,7 +25,12 @@ def add_transfers(graph):
         if station_b not in graph:
             graph[station_b] = {}
 
-        graph[station_a][station_b] = TRANSFER_TIME
-        graph[station_b][station_a] = TRANSFER_TIME
+        graph[station_a][station_b] = {
+            TRANSFER_ROUTE: TRANSFER_TIME
+        }
+
+        graph[station_b][station_a] = {
+            TRANSFER_ROUTE: TRANSFER_TIME
+        }
 
     return graph
