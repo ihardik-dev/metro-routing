@@ -85,44 +85,7 @@ def time_to_seconds(time_string):
     return hours * 3600 + minutes * 60 + seconds
 
 
-if __name__ == "__main__":
-    stops = load_stops()
-    routes = load_routes()
-    trips = load_trips()
-    stop_times = load_stop_times()
-
-    graph = {}
-
-    for trip_id, trip_stops in stop_times.items():
-
-        for i in range(len(trip_stops) - 1):
-            current = trip_stops[i]
-            next_stop = trip_stops[i + 1]
-
-            current_id = current["stop_id"]
-            next_id = next_stop["stop_id"]
-
-            departure = time_to_seconds(current["departure"])
-            arrival = time_to_seconds(next_stop["arrival"])
-
-            travel_time = arrival - departure
-
-            if current_id not in graph:
-                graph[current_id] = {}
-
-            if next_id not in graph[current_id]:
-                graph[current_id][next_id] = []
-
-            graph[current_id][next_id].append(travel_time)
-
-    for current_id in graph:
-        for next_id in graph[current_id]:
-            times = graph[current_id][next_id]
-
-            average_time = sum(times) / len(times)
-
-            graph[current_id][next_id] = round(average_time)
-
+def find_route(source, target):
 
     distances = {}
     previous = {}
@@ -131,7 +94,7 @@ if __name__ == "__main__":
         distances[stop_id] = float("inf")
         previous[stop_id] = None
 
-    distances[21] = 0
+    distances[source] = 0
 
     unvisited = set(graph.keys())
 
@@ -144,6 +107,10 @@ if __name__ == "__main__":
 
         unvisited.remove(current)
 
+        # No more reachable stations
+        if distances[current] == float("inf"):
+            break
+
         for neighbor, travel_time in graph[current].items():
 
             new_distance = distances[current] + travel_time
@@ -152,8 +119,11 @@ if __name__ == "__main__":
                 distances[neighbor] = new_distance
                 previous[neighbor] = current
 
+    # Destination unreachable
+    if distances[target] == float("inf"):
+        return None
 
-    target = 1
+    # Reconstruct route
     path = []
 
     current = target
@@ -164,5 +134,5 @@ if __name__ == "__main__":
 
     path.reverse()
 
-    print("Path:", path)
-    print("Travel time:", distances[target], "seconds")
+    return path, distances[target]
+
