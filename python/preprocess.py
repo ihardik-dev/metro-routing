@@ -1,5 +1,6 @@
 import csv
 
+
 STOPS_FILE = "data/raw/gtfs/stops.txt"
 ROUTES_FILE = "data/raw/gtfs/routes.txt"
 TRIPS_FILE = "data/raw/gtfs/trips.txt"
@@ -85,6 +86,47 @@ def time_to_seconds(time_string):
     return hours * 3600 + minutes * 60 + seconds
 
 
+def build_graph(stop_times):
+    graph = {}
+
+    # Build graph from consecutive stops
+    for trip_id, trip_stops in stop_times.items():
+
+        for i in range(len(trip_stops) - 1):
+
+            current = trip_stops[i]
+            next_stop = trip_stops[i + 1]
+
+            current_id = current["stop_id"]
+            next_id = next_stop["stop_id"]
+
+            departure = time_to_seconds(current["departure"])
+            arrival = time_to_seconds(next_stop["arrival"])
+
+            travel_time = arrival - departure
+
+            if current_id not in graph:
+                graph[current_id] = {}
+
+            if next_id not in graph[current_id]:
+                graph[current_id][next_id] = []
+
+            graph[current_id][next_id].append(travel_time)
+
+    # Average travel times
+    for current_id in graph:
+
+        for next_id in graph[current_id]:
+
+            times = graph[current_id][next_id]
+
+            average_time = sum(times) / len(times)
+
+            graph[current_id][next_id] = round(average_time)
+
+    return graph
+
+
 def find_route(graph, source, target):
 
     distances = {}
@@ -137,49 +179,12 @@ def find_route(graph, source, target):
 if __name__ == "__main__":
 
     stops = load_stops()
-    routes = load_routes()
-    trips = load_trips()
     stop_times = load_stop_times()
 
-    graph = {}
+    graph = build_graph(stop_times)
 
-    # Build graph
-    for trip_id, trip_stops in stop_times.items():
-
-        for i in range(len(trip_stops) - 1):
-
-            current = trip_stops[i]
-            next_stop = trip_stops[i + 1]
-
-            current_id = current["stop_id"]
-            next_id = next_stop["stop_id"]
-
-            departure = time_to_seconds(current["departure"])
-            arrival = time_to_seconds(next_stop["arrival"])
-
-            travel_time = arrival - departure
-
-            if current_id not in graph:
-                graph[current_id] = {}
-
-            if next_id not in graph[current_id]:
-                graph[current_id][next_id] = []
-
-            graph[current_id][next_id].append(travel_time)
-
-    # Average travel times
-    for current_id in graph:
-        for next_id in graph[current_id]:
-
-            times = graph[current_id][next_id]
-
-            average_time = sum(times) / len(times)
-
-            graph[current_id][next_id] = round(average_time)
-
-    # Find route
-    source = 21
-    target = 1
+    source = 33
+    target = 176
 
     result = find_route(graph, source, target)
 
